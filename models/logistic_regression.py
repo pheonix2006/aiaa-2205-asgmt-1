@@ -1,12 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 class LogisticRegression:
-    def __init__(self, lr=0.1, epochs=2000):
+    def __init__(self, lr=0.1, epochs=2000, batch_size=32,reg_lambda=0.0):
         self.lr = lr
         self.epochs = epochs
         # You may choose to use more hyper-parameters
-
-        self.loss_history = []
+        self.batch_size = batch_size
+        self.reg_lambda = reg_lambda
+        self.train_loss_history = []
+        self.val_loss_history = []
         self.W = None
         self.b = None
 
@@ -25,8 +28,6 @@ class LogisticRegression:
             """
             TODO: 实现 sigmoid 函数 (数值稳定版)
             """
-            # 防止 z 过大或过小导致 np.exp 溢出
-            # np.clip(array, min, max) 会将数组中的值限制在 [min, max] 范围内
             z = np.clip(z, -500, 500)
             
             return 1 / (1 + np.exp(-z))
@@ -46,7 +47,6 @@ class LogisticRegression:
         y_hat = self.sigmoid(z)
         
         return y_hat
-
     def compute_loss(self, y_true, y_hat):
         """
         TODO: 实现损失函数
@@ -59,10 +59,11 @@ class LogisticRegression:
         m = y_true.shape[0]
         # 为了防止 log(0) 的情况，给 y_hat 加上一个极小值 epsilon
         epsilon = 1e-9
-        loss = - (1/m) * np.sum(y_true * np.log(y_hat + epsilon) + (1 - y_true) * np.log(1 - y_hat + epsilon))
-        
+        cross_entropy_loss = - (1/m) * np.sum(y_true * np.log(y_hat + epsilon) + (1 - y_true) * np.log(1 - y_hat + epsilon))
+        l2_regularization_cost = (self.reg_lambda / (2 * m)) * np.sum(np.square(self.W))
+        total_loss = cross_entropy_loss + l2_regularization_cost
         # np.squeeze 会移除数组中维度为1的条目，将损失值从一个数组变成一个标量
-        return np.squeeze(loss)
+        return np.squeeze(total_loss)
 
     def compute_gradients(self, X, y_true, y_hat):
             """
@@ -74,56 +75,70 @@ class LogisticRegression:
             error = y_hat - y_true
             
             # 计算梯度
-            dW = (1/m) * np.dot(X.T, error)
+            dW_original = (1/m) * np.dot(X.T, error)
             db = (1/m) * np.sum(error)
+
+            dW = dW_original + (self.reg_lambda / m) * self.W
             
             return dW, db
 
+    def fit(self, X_train, y_train, X_val, y_val, data_iter): # <--- 修改了输入参数
+        # 确保 y 的形状正确
+        y_train = y_train.reshape(-1, 1)
+        y_val = y_val.reshape(-1, 1)
 
-    def fit(self, X, y):
-        y = y.reshape(-1, 1)
-        n, d = X.shape
+        n, d = X_train.shape
         self.initialize_parameters(d)
 
-        # --- 实时绘图设置 ---
-        plt.ion()  # 开启交互模式
+        # --- 绘图设置 ---
+        NUM_UPDATES = 50
+        update_interval = self.epochs // NUM_UPDATES if self.epochs > NUM_UPDATES else 1
+        plt.ion()
         fig, ax = plt.subplots(figsize=(8, 6))
-        ax.set_xlabel("Epoch")
-        ax.set_ylabel("Loss")
-        ax.set_title("Training Loss Curve (Live)")
-        # ---------------------
+        # -----------------
 
         for epoch in range(self.epochs):
-            y_hat = self.predict_proba(X)
-
-            loss = self.compute_loss(y, y_hat)
-            self.loss_history.append(loss)
-
-            dW, db = self.compute_gradients(X, y, y_hat)
-
-            self.W = self.W - self.lr * dW
-            self.b = self.b - self.lr * db
-
-            # --- 定期更新图像 ---
-            # 每 100 次迭代更新一次，避免因为绘图过于频繁而导致训练变慢
-            if (epoch + 1) % 100 == 0:
-                # 打印当前训练进度
-                print(f"Epoch [{epoch+1}/{self.epochs}], Loss: {loss:.4f}")
+            # --- Mini-Batch 核心：使用 data_iter 遍历小批量数据 ---
+            for X_batch, y_batch in data_iter(self.batch_size, X_train, y_train):
+                # 在当前批次上计算预测和梯度
+                y_hat_batch = self.predict_proba(X_batch)
+                dW, db = self.compute_gradients(X_batch, y_batch, y_hat_batch)
                 
-                # 清除旧的图像并重新绘制
+                # 更新权重
+                self.W = self.W - self.lr * dW
+                self.b = self.b - self.lr * db
+            # ----------------------------------------------------
+
+            # --- 在每个epoch结束后，计算整个数据集的损失用于绘图 ---
+            y_hat_train = self.predict_proba(X_train)
+            train_loss = self.compute_loss(y_train, y_hat_train)
+            self.train_loss_history.append(train_loss)
+
+            y_hat_val = self.predict_proba(X_val)
+            val_loss = self.compute_loss(y_val, y_hat_val)
+            self.val_loss_history.append(val_loss)
+            # ----------------------------------------------------
+            
+            # --- 定期更新图像 (这部分代码保持不变) ---
+            if (epoch + 1) % update_interval == 0 or epoch == 0:
+                print(f"Epoch [{epoch+1}/{self.epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
                 ax.clear()
-                ax.plot(self.loss_history)
+                ax.plot(self.train_loss_history, label='Train Loss (Mini-Batch)')
+                ax.plot(self.val_loss_history, label='Validation Loss (Mini-Batch)')
+                ax.legend()
                 ax.set_xlabel("Epoch")
                 ax.set_ylabel("Loss")
-                ax.set_title("Training Loss Curve (Live)")
-                
-                # 短暂暂停，让图像有时间刷新
-                plt.pause(0.1)
-            # ---------------------
+                ax.set_title("Training vs. Validation Loss")
+                plt.pause(0.01)
 
-        print(f"Training finished. Final Loss: {self.loss_history[-1]:.4f}")
-
-        # --- 训练结束后，保持最终图像窗口 ---
-        plt.ioff()  # 关闭交互模式
-        plt.show()  # 显示最终的静态图像
-        # -----------------------------------
+        # ... (训练结束后的打印和最终绘图代码保持不变) ...
+        print(f"Training finished. Final Train Loss: {self.train_loss_history[-1]:.4f}, Final Val Loss: {self.val_loss_history[-1]:.4f}")
+        ax.clear()
+        ax.plot(self.train_loss_history, label='Train Loss (Mini-Batch)')
+        ax.plot(self.val_loss_history, label='Validation Loss (Mini-Batch)')
+        ax.legend()
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Loss")
+        ax.set_title("Final Training vs. Validation Loss")
+        plt.ioff()
+        plt.show()

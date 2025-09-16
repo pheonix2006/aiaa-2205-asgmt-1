@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import random
 from models.logistic_regression import LogisticRegression
 
 # ======================= User Config =======================
@@ -11,11 +11,21 @@ LR = 0.0005
 EPOCHS = 10000
 THRESHOLD = 0.5       
 SEED = 0
+BATCH_SIZE = 32
+REG_LAMBDA = 0.01
 # ===========================================================
 
 TRAIN_DATA_PATH = f"./data/classification_data_train.csv"  # Please put data csv in the `data` folder
 TEST_DATA_PATH = f"./data/classification_data_test.csv"  # Please put data csv in the `data` folder
 
+def data_iter(batch_size, features, labels):
+    num_examples = len(features)
+    indices = list(range(num_examples))
+    # 这些样本是随机读取的，没有特定的顺序
+    random.shuffle(indices)
+    for i in range(0, num_examples, batch_size):
+        batch_indices = np.array(indices[i: min(i + batch_size, num_examples)])
+        yield features[batch_indices], labels[batch_indices]
 
 def rmse(y_true, y_pred):
     """
@@ -143,8 +153,8 @@ if __name__ == "__main__":
     print(f"Validation set size: {len(X_val)}")
     print(f"Test set size: {len(X_test)}")
     
-    model = LogisticRegression(lr=LR, epochs=EPOCHS)  # You may choose to pass more hyper-parameters to your model
-    model.fit(X_train, y_train)
+    model = LogisticRegression(lr=LR, epochs=EPOCHS,batch_size=BATCH_SIZE,reg_lambda=REG_LAMBDA)  # You may choose to pass more hyper-parameters to your model
+    model.fit(X_train, y_train, X_val, y_val, data_iter)
 
 
     proba = model.predict_proba(X_test)
