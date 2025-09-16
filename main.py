@@ -28,9 +28,8 @@ def accuracy(y_true, y_pred):
     """
     TODO: 实现 accuracy 函数
     """
-    # y_true == y_pred 会生成一个布尔数组 (True/False)
-    # np.mean 会将 True 当作 1，False 当作 0 来计算平均值，这恰好就是准确率
-    return np.mean(y_true == y_pred)
+    # [修正] 使用 .flatten() 来确保两个数组都是一维的，避免广播错误
+    return np.mean(y_true.flatten() == y_pred.flatten())
 
 
 def confusion_matrix(y_true, y_pred):

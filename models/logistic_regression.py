@@ -22,11 +22,14 @@ class LogisticRegression:
         self.b = 0
 
     def sigmoid(self, z):
-        """
-        TODO: 实现 sigmoid 函数
-        """
-        # 计算 z 的 sigmoid 值
-        return 1 / (1 + np.exp(-z))
+            """
+            TODO: 实现 sigmoid 函数 (数值稳定版)
+            """
+            # 防止 z 过大或过小导致 np.exp 溢出
+            # np.clip(array, min, max) 会将数组中的值限制在 [min, max] 范围内
+            z = np.clip(z, -500, 500)
+            
+            return 1 / (1 + np.exp(-z))
 
     def predict_proba(self, X):
         """
@@ -78,8 +81,17 @@ class LogisticRegression:
 
 
     def fit(self, X, y):
+        y = y.reshape(-1, 1)
         n, d = X.shape
         self.initialize_parameters(d)
+
+        # --- 实时绘图设置 ---
+        plt.ion()  # 开启交互模式
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Loss")
+        ax.set_title("Training Loss Curve (Live)")
+        # ---------------------
 
         for epoch in range(self.epochs):
             y_hat = self.predict_proba(X)
@@ -89,14 +101,29 @@ class LogisticRegression:
 
             dW, db = self.compute_gradients(X, y, y_hat)
 
-            # TODO: 梯度下降更新
             self.W = self.W - self.lr * dW
             self.b = self.b - self.lr * db
 
+            # --- 定期更新图像 ---
+            # 每 100 次迭代更新一次，避免因为绘图过于频繁而导致训练变慢
+            if (epoch + 1) % 100 == 0:
+                # 打印当前训练进度
+                print(f"Epoch [{epoch+1}/{self.epochs}], Loss: {loss:.4f}")
+                
+                # 清除旧的图像并重新绘制
+                ax.clear()
+                ax.plot(self.loss_history)
+                ax.set_xlabel("Epoch")
+                ax.set_ylabel("Loss")
+                ax.set_title("Training Loss Curve (Live)")
+                
+                # 短暂暂停，让图像有时间刷新
+                plt.pause(0.1)
+            # ---------------------
 
-        # TODO: plot loss vs epoch
-        plt.plot(range(self.epochs), self.loss_history)
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.title("Loss Curve")
-        plt.show()
+        print(f"Training finished. Final Loss: {self.loss_history[-1]:.4f}")
+
+        # --- 训练结束后，保持最终图像窗口 ---
+        plt.ioff()  # 关闭交互模式
+        plt.show()  # 显示最终的静态图像
+        # -----------------------------------
