@@ -12,7 +12,7 @@ EPOCHS = 10000
 THRESHOLD = 0.5       
 SEED = 0
 BATCH_SIZE = 32
-REG_LAMBDA = 0.01
+REG_LAMBDA = 0.1
 # ===========================================================
 
 TRAIN_DATA_PATH = f"./data/classification_data_train.csv"  # Please put data csv in the `data` folder
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     print(f"Test set size: {len(X_test)}")
     
     model = LogisticRegression(lr=LR, epochs=EPOCHS,batch_size=BATCH_SIZE,reg_lambda=REG_LAMBDA)  # You may choose to pass more hyper-parameters to your model
-    model.fit(X_train, y_train, X_val, y_val, data_iter)
+    model.fit(X_train, y_train, X_val, y_val, data_iter,accuracy,THRESHOLD)
 
 
     proba = model.predict_proba(X_test)
