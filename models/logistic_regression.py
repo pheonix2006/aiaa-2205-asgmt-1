@@ -2,18 +2,29 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 class LogisticRegression:
-    def __init__(self, lr=0.1, epochs=2000, batch_size=32,reg_lambda=0.0):
+    def __init__(self, lr=0.1, epochs=2000, batch_size=32, reg_lambda=0.0, optimizer='adam',
+                 beta1=0.9, beta2=0.999, epsilon=1e-8):
         self.lr = lr
         self.epochs = epochs
         # You may choose to use more hyper-parameters
         self.batch_size = batch_size
         self.reg_lambda = reg_lambda
+        self.optimizer = optimizer
+        self.beta1 = beta1      # Adam的一阶矩估计的指数衰减率
+        self.beta2 = beta2      # Adam的二阶矩估计的指数衰减率
+        self.epsilon = epsilon  # 防止除零的小数值
         self.train_loss_history = []
         self.val_loss_history = []
         self.train_acc_history = []
         self.val_acc_history = []
         self.W = None
         self.b = None
+        # Adam优化器的变量
+        self.m_W = None         # 一阶矩估计（动量）
+        self.v_W = None         # 二阶矩估计（自适应学习率）
+        self.m_b = None
+        self.v_b = None
+        self.t = 0             # 时间步
 
     def initialize_parameters(self, d):
         """
@@ -21,10 +32,17 @@ class LogisticRegression:
         参数:
         d -- 特征的数量
         """
-        # 将权重 W 初始化为 (d, 1) 的零向量
-        self.W = np.zeros((d, 1))
-        # 将偏置 b 初始化为 0
+        # 使用Xavier/Glorot初始化，比零初始化更好
+        self.W = np.random.randn(d, 1) * np.sqrt(2.0 / d)
         self.b = 0
+
+        # 初始化Adam优化器的变量
+        if self.optimizer == 'adam':
+            self.m_W = np.zeros_like(self.W)
+            self.v_W = np.zeros_like(self.W)
+            self.m_b = 0
+            self.v_b = 0
+            self.t = 0
 
     def sigmoid(self, z):
             """
@@ -82,10 +100,10 @@ class LogisticRegression:
             TODO: 推导并实现梯度 dW, db
             """
             m = X.shape[0]
-            
+
             # 计算预测值与真实值之间的误差
             error = y_hat - y_true
-            
+
             # 计算梯度
             dW_original = (1/m) * np.dot(X.T, error)
             db = (1/m) * np.sum(error)
@@ -93,8 +111,43 @@ class LogisticRegression:
             # L1正则化的梯度（次梯度）
             l1_gradient = self.reg_lambda * np.sign(self.W)
             dW = dW_original + l1_gradient
-            
+
             return dW, db
+
+    def update_parameters(self, dW, db):
+        """
+        根据选择的优化器更新参数
+        """
+        if self.optimizer == 'adam':
+            return self._adam_update(dW, db)
+        else:
+            # 默认使用SGD
+            self.W = self.W - self.lr * dW
+            self.b = self.b - self.lr * db
+
+    def _adam_update(self, dW, db):
+        """
+        Adam优化器的参数更新
+        """
+        self.t += 1
+
+        # 更新一阶矩估计（动量）
+        self.m_W = self.beta1 * self.m_W + (1 - self.beta1) * dW
+        self.m_b = self.beta1 * self.m_b + (1 - self.beta1) * db
+
+        # 更新二阶矩估计（自适应学习率）
+        self.v_W = self.beta2 * self.v_W + (1 - self.beta2) * (dW ** 2)
+        self.v_b = self.beta2 * self.v_b + (1 - self.beta2) * (db ** 2)
+
+        # 计算偏差修正后的一阶矩和二阶矩估计
+        m_W_hat = self.m_W / (1 - self.beta1 ** self.t)
+        m_b_hat = self.m_b / (1 - self.beta1 ** self.t)
+        v_W_hat = self.v_W / (1 - self.beta2 ** self.t)
+        v_b_hat = self.v_b / (1 - self.beta2 ** self.t)
+
+        # 更新参数
+        self.W = self.W - self.lr * m_W_hat / (np.sqrt(v_W_hat) + self.epsilon)
+        self.b = self.b - self.lr * m_b_hat / (np.sqrt(v_b_hat) + self.epsilon)
 
     def fit(self, X_train, y_train, X_val, y_val, data_iter_fn, accuracy_fn, threshold):
             # 确保 y 的形状正确
@@ -119,8 +172,8 @@ class LogisticRegression:
                 for X_batch, y_batch in data_iter_fn(self.batch_size, X_train, y_train):
                     y_hat_batch = self.predict_proba(X_batch)
                     dW, db = self.compute_gradients(X_batch, y_batch, y_hat_batch)
-                    self.W = self.W - self.lr * dW
-                    self.b = self.b - self.lr * db
+                    # 使用选择的优化器更新参数
+                    self.update_parameters(dW, db)
 
                 # --- 在每个epoch结束后，计算 Loss 和 Accuracy ---
                 # 计算 Loss

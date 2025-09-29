@@ -7,12 +7,13 @@ from models.logistic_regression import LogisticRegression
 
 # ======================= User Config =======================
 VAL_SIZE = 0.15
-LR = 0.001          # 提高学习率，L1正则化需要更大的学习率
-EPOCHS = 3000        # 减少训练轮数，防止过拟合
+LR = 0.0005         # 降低学习率，Adam通常需要更小的学习率
+EPOCHS = 2000        # 增加训练轮数，确保充分收敛
 THRESHOLD = 0.5
-SEED = 0
+SEED = 3
 BATCH_SIZE = 32
-REG_LAMBDA = 0.01    # 降低L1正则化系数，防止过度惩罚
+REG_LAMBDA = 0.05    # 降低L1正则化系数，与最佳SGD版本一致
+OPTIMIZER = 'adam'   # 使用Adam优化器
 # ===========================================================
 
 TRAIN_DATA_PATH = f"./data/classification_data_train.csv"  # Please put data csv in the `data` folder
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     print(f"Validation set size: {len(X_val)}")
     print(f"Test set size: {len(X_test)}")
     
-    model = LogisticRegression(lr=LR, epochs=EPOCHS,batch_size=BATCH_SIZE,reg_lambda=REG_LAMBDA)  # You may choose to pass more hyper-parameters to your model
+    model = LogisticRegression(lr=LR, epochs=EPOCHS, batch_size=BATCH_SIZE, reg_lambda=REG_LAMBDA, optimizer=OPTIMIZER)  # 使用Adam优化器
     model.fit(X_train, y_train, X_val, y_val, data_iter,accuracy,THRESHOLD)
 
 
@@ -171,8 +172,8 @@ if __name__ == "__main__":
     print(f">> Test AUC: {auc:.4f}")
 
     # 将测试结果保存到txt文件
-    with open("test_results.txt", "w", encoding="utf-8") as f:
-        f.write("=== L1正则化逻辑回归测试结果 ===\n\n")
+    with open("adam_test_results_optimized.txt", "w", encoding="utf-8") as f:
+        f.write("=== Adam优化器 + L1正则化逻辑回归测试结果 ===\n\n")
         f.write(f"数据集信息:\n")
         f.write(f"- 训练集大小: {len(X_train)}\n")
         f.write(f"- 验证集大小: {len(X_val)}\n")
@@ -182,6 +183,7 @@ if __name__ == "__main__":
         f.write(f"- 训练轮数(EPOCHS): {EPOCHS}\n")
         f.write(f"- 批量大小(BATCH_SIZE): {BATCH_SIZE}\n")
         f.write(f"- L1正则化系数(REG_LAMBDA): {REG_LAMBDA}\n")
+        f.write(f"- 优化器(OPTIMIZER): {OPTIMIZER}\n")
         f.write(f"- 分类阈值(THRESHOLD): {THRESHOLD}\n\n")
         f.write(f"测试结果:\n")
         f.write(f"- 测试准确率: {test_accuracy:.4f}\n")
@@ -200,4 +202,4 @@ if __name__ == "__main__":
         f.write(f"- 召回率(Recall): {recall:.4f}\n")
         f.write(f"- F1分数: {f1_score:.4f}\n")
 
-    print("\n测试结果已保存到 test_results.txt 文件中")
+    print("\nAdam优化器优化版本测试结果已保存到 adam_test_results_optimized.txt 文件中")
