@@ -7,12 +7,12 @@ from models.logistic_regression import LogisticRegression
 
 # ======================= User Config =======================
 VAL_SIZE = 0.15
-LR = 0.0005
-EPOCHS = 10000
-THRESHOLD = 0.5       
+LR = 0.001          # 提高学习率，L1正则化需要更大的学习率
+EPOCHS = 3000        # 减少训练轮数，防止过拟合
+THRESHOLD = 0.5
 SEED = 0
 BATCH_SIZE = 32
-REG_LAMBDA = 0.1
+REG_LAMBDA = 0.01    # 降低L1正则化系数，防止过度惩罚
 # ===========================================================
 
 TRAIN_DATA_PATH = f"./data/classification_data_train.csv"  # Please put data csv in the `data` folder
@@ -160,10 +160,44 @@ if __name__ == "__main__":
     proba = model.predict_proba(X_test)
 
     y_pred = (proba >= THRESHOLD).astype(float)
-    print(f">> Test Accuracy: {accuracy(y_test, y_pred):.4f}")
+    test_accuracy = accuracy(y_test, y_pred)
+    print(f">> Test Accuracy: {test_accuracy:.4f}")
 
+    conf_matrix = confusion_matrix(y_test, y_pred)
     print(">> Confusion Matrix [[TN, FP], [FN, TP]]:")
-    print(confusion_matrix(y_test, y_pred))
+    print(conf_matrix)
 
     auc = plot_roc(y_test, proba)
     print(f">> Test AUC: {auc:.4f}")
+
+    # 将测试结果保存到txt文件
+    with open("test_results.txt", "w", encoding="utf-8") as f:
+        f.write("=== L1正则化逻辑回归测试结果 ===\n\n")
+        f.write(f"数据集信息:\n")
+        f.write(f"- 训练集大小: {len(X_train)}\n")
+        f.write(f"- 验证集大小: {len(X_val)}\n")
+        f.write(f"- 测试集大小: {len(X_test)}\n\n")
+        f.write(f"超参数设置:\n")
+        f.write(f"- 学习率(LR): {LR}\n")
+        f.write(f"- 训练轮数(EPOCHS): {EPOCHS}\n")
+        f.write(f"- 批量大小(BATCH_SIZE): {BATCH_SIZE}\n")
+        f.write(f"- L1正则化系数(REG_LAMBDA): {REG_LAMBDA}\n")
+        f.write(f"- 分类阈值(THRESHOLD): {THRESHOLD}\n\n")
+        f.write(f"测试结果:\n")
+        f.write(f"- 测试准确率: {test_accuracy:.4f}\n")
+        f.write(f"- AUC值: {auc:.4f}\n")
+        f.write(f"- 混淆矩阵:\n")
+        f.write(f"  [[{conf_matrix[0,0]}, {conf_matrix[0,1]}],\n")
+        f.write(f"   [{conf_matrix[1,0]}, {conf_matrix[1,1]}]]\n\n")
+
+        # 计算额外指标
+        TN, FP, FN, TP = conf_matrix[0,0], conf_matrix[0,1], conf_matrix[1,0], conf_matrix[1,1]
+        precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+        recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+        f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+        f.write(f"- 精确率(Precision): {precision:.4f}\n")
+        f.write(f"- 召回率(Recall): {recall:.4f}\n")
+        f.write(f"- F1分数: {f1_score:.4f}\n")
+
+    print("\n测试结果已保存到 test_results.txt 文件中")

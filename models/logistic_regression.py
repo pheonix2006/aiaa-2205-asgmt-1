@@ -72,8 +72,8 @@ class LogisticRegression:
         # 为了防止 log(0) 的情况，给 y_hat 加上一个极小值 epsilon
         epsilon = 1e-9
         cross_entropy_loss = - (1/m) * np.sum(y_true * np.log(y_hat + epsilon) + (1 - y_true) * np.log(1 - y_hat + epsilon))
-        l2_regularization_cost = (self.reg_lambda / (2 * m)) * np.sum(np.square(self.W))
-        total_loss = cross_entropy_loss + l2_regularization_cost
+        l1_regularization_cost = (self.reg_lambda / m) * np.sum(np.abs(self.W))
+        total_loss = cross_entropy_loss + l1_regularization_cost
         # np.squeeze 会移除数组中维度为1的条目，将损失值从一个数组变成一个标量
         return np.squeeze(total_loss)
 
@@ -90,7 +90,9 @@ class LogisticRegression:
             dW_original = (1/m) * np.dot(X.T, error)
             db = (1/m) * np.sum(error)
 
-            dW = dW_original + (self.reg_lambda / m) * self.W
+            # L1正则化的梯度（次梯度）
+            l1_gradient = self.reg_lambda * np.sign(self.W)
+            dW = dW_original + l1_gradient
             
             return dW, db
 
